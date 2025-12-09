@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, Boolean, DateTime, Text, ForeignKey, String
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from database import Base
 
 class Task(Base):
@@ -50,6 +51,18 @@ class Task(Base):
         nullable=True
     )
     
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    owner = relationship(
+        "User",
+        back_populates="tasks"
+    )
+
     # ДОБАВЛЯЕМ новое поле - дедлайн
     deadline_at = Column(
         DateTime(timezone=True),
@@ -71,7 +84,8 @@ class Task(Base):
             "completed": self.completed,
             "created_at": self.created_at,
             "completed_at": self.completed_at,
-            "deadline_at": self.deadline_at  # Добавляем
+            "deadline_at": self.deadline_at,  # Добавляем
+            "user_id": self.user_id
         }
     
     # НОВЫЙ МЕТОД: проверка срочности на основе дедлайна
