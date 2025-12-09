@@ -71,6 +71,30 @@ async def get_tasks_by_quadrant(
     tasks = result.scalars().all()
     return [TaskResponse.from_orm(task) for task in tasks]
 
+@router.get("/today", response_model=List[TaskResponse])
+async def get_tasks_due_today(
+    db: AsyncSession = Depends(get_async_session)
+) -> List[TaskResponse]:
+    """
+    Возвращает задачи, срок выполнения которых истекает сегодня.
+    """
+    from datetime import datetime, timezone, timedelta
+    
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    today_end = today_start + timedelta(days=1)
+    
+    result = await db.execute(
+        select(Task).where(
+            (Task.deadline_at >= today_start) &
+            (Task.deadline_at < today_end) &
+            (Task.completed == False)
+        ).order_by(Task.deadline_at)
+    )
+    tasks = result.scalars().all()
+    
+    return [TaskResponse.from_orm(task) for task in tasks]
+
 # SEARCH TASKS (без изменений)
 @router.get("/search", response_model=List[TaskResponse])
 async def search_tasks(
@@ -233,3 +257,4 @@ async def delete_task(
         "id": deleted_task_info["id"],
         "title": deleted_task_info["title"]
     }
+
