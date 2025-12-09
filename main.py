@@ -1,28 +1,65 @@
-from fastapi import FastAPI
-from routers import tasks, stats
+from fastapi import FastAPI, Depends 
+from contextlib import asynccontextmanager 
+from database import init_db, get_async_session 
+from sqlalchemy.ext.asyncio import AsyncSession 
+from sqlalchemy import text 
 
-app = FastAPI(
-    title="ToDo лист API",
-    description="API для управления задачами с использованием матрицы Эйзенхауэра",
-    version="1.0.0",
-    contact={
-        "name": "Сагдиева Вероника Борисовна",
+# Импортируем роутеры напрямую из файлов (альтернативный способ)
+from routers.tasks import router as tasks_router
+from routers.stats import router as stats_router
+ 
+@asynccontextmanager 
+async def lifespan(app: FastAPI): 
+    # Код ДО yield выполняется при ЗАПУСКЕ 
+    print("✅ Запуск приложения...") 
+    print("📊 Инициализация базы данных...") 
+ 
+    # Создаем таблицы (если их нет) 
+    await init_db() 
+    print("🚀 Приложение готово к работе!") 
+    yield  # Здесь приложение работает 
+    
+    # Код ПОСЛЕ yield выполняется при ОСТАНОВКЕ 
+    print("🛑 Остановка приложения...") 
+ 
+app = FastAPI( 
+    title="ToDo лист API", 
+    description="API для управления задачами с использованием матрицы Эйзенхауэра", 
+    version="2.0.0", 
+    contact={ 
+        "name": "Ваше Имя", 
+    }, 
+    lifespan=lifespan  # Подключаем lifespan 
+) 
+ 
+# Подключаем роутеры
+app.include_router(tasks_router, prefix="/api/v2")
+app.include_router(stats_router, prefix="/api/v2")
+ 
+@app.get("/") 
+async def read_root() -> dict: 
+    return { 
+        "message": "Task Manager API - Управление задачами по матрице Эйзенхауэра", 
+        "version": "2.0.0", 
+        "database": "PostgreSQL (Supabase)", 
+        "docs": "/docs", 
+        "redoc": "/redoc", 
+    } 
+ 
+@app.get("/health") 
+async def health_check( 
+    db: AsyncSession = Depends(get_async_session)) -> dict: 
+    """ 
+    Проверка здоровья API и динамическая проверка подключения к БД. 
+    """ 
+    try: 
+        # Пытаемся выполнить простейший запрос к БД 
+        await db.execute(text("SELECT 1")) 
+        db_status = "connected" 
+    except Exception: 
+        db_status = "disconnected" 
+ 
+    return { 
+        "status": "healthy", 
+        "database": db_status 
     }
-)
-
-app.include_router(tasks.router, prefix="/api/v1")
-app.include_router(stats.router, prefix="/api/v1")
-
-@app.get("/")
-async def welcome() -> dict:
-    return {
-        "message": "Привет, студент!", 
-        "api_title": app.title, 
-        "api_description": app.description, 
-        "api_version": app.version, 
-        "api_author": app.contact["name"] if app.contact else "Не указан"
-    }
-
-@app.post("/tasks")
-async def create_task(task: dict):
-    return {"message": "Запись успешно создана!", "task": task}
